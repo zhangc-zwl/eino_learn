@@ -32,8 +32,8 @@ func main() {
 
 	template := prompt.FromMessages(
 		schema.GoTemplate,
-		schema.SystemMessage("你是一个{role}, 请用{tone}的语气回答问题"),
-		schema.UserMessage("{question}"),
+		schema.SystemMessage("你是一个{{.role}}, 请用{{.tone}}的语气回答问题"),
+		schema.UserMessage("{{.question}}"),
 	)
 
 	vars := map[string]any{
