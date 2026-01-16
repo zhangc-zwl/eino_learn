@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/cloudwego/eino-ext/components/model/openai"
 	"github.com/cloudwego/eino/components/prompt"
@@ -32,7 +33,6 @@ type userInfoResponse struct {
 
 func main() {
 	ctx := context.Background()
-	g := compose.NewGraph[map[string]any, *schema.Message]()
 	//1. 创建ChatTemplate节点
 	systemTpl := `你是一名房产经纪人，结合用户的薪酬和工作，使用 user_info API，为其提供相关的房产信息。邮箱是必须的`
 	chatTpl := prompt.FromMessages(schema.FString,
@@ -80,6 +80,8 @@ func main() {
 			- 月供（按30年商业贷款，利率4%估算）不应超过家庭月收入的50%。
 		2.  **职住平衡**: 推荐的房产区域应与用户公司所在地有较好的通勤关系。例如，在字节跳动工作的高管，优先推荐海淀区的“瀚海星辰”。
 		3.  **身份匹配**: 房产的“适合人群”标签应与用户的职位和身份高度匹配。例如，CEO身份的用户应优先考虑“国贸天际”这类彰显身份的豪宅。
+==================
+{toolsInfo}
 	
 	`
 	//2. 创建chatModel节点
@@ -158,7 +160,21 @@ func main() {
 			fmt.Println("input name:", input.Name)
 			fmt.Println("input role:", input.Role)
 			fmt.Println("input content:", input.Content)
-			messages = append(messages, schema.SystemMessage(recommendTpl), input)
+			//messages = append(messages, schema.SystemMessage(recommendTpl), input)
+			// 工具返回的结果+新的提示词
+			template := prompt.FromMessages(schema.FString, schema.SystemMessage(recommendTpl))
+			var sb strings.Builder
+			if input.Role == schema.Tool {
+				sb.WriteString("以下是工具返回的结果:\n")
+				sb.WriteString(input.Content)
+			}
+			variables := map[string]any{
+				"toolsInfo": sb.String(),
+			}
+			messages, err = template.Format(ctx, variables)
+			if err != nil {
+				return nil, err
+			}
 			return messages, nil
 		}), nil
 	}
@@ -173,6 +189,8 @@ func main() {
 		lambdaNodeKey        = "lambda"
 		lambdaPromptNodeKey  = "lambdaPrompt"
 	)
+
+	g := compose.NewGraph[map[string]any, *schema.Message]()
 	//9. 添加节点
 	_ = g.AddChatTemplateNode(promptNodeKey, chatTpl)
 	_ = g.AddChatModelNode(chatNodeKey, chatModel)
